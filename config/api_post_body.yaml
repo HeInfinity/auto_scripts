@@ -1,0 +1,44 @@
+# api_post_body.yaml
+# POST请求体模板配置文件
+post_body:
+  # 企业微信模板
+  wechat:
+    # 创建成员
+    user_create:
+      userid: "USERID"
+      name: "NAME"
+      mobile: "MOBILE"
+      department: ["DEPARTMENT_ID"]
+      position: "POSITION"
+      gender: "GENDER"
+      email: "EMAIL"
+      biz_mail: "BIZ_MAIL"
+      direct_leader: ["DIRECT_LEADER"]
+      enable: 1
+      
+    # 更新成员
+    user_update:
+      userid: "USERID"
+      name: "NAME"
+      mobile: "MOBILE"
+      department: ["DEPARTMENT_ID"]
+      # ... 其他字段
+      
+    # 发送应用消息
+    send_message:
+      touser: "USER_ID"
+      msgtype: "text"
+      agentid: "AGENT_ID"
+      text:
+        content: "CONTENT"
+      safe: 0
+      enable_id_trans: 0
+      enable_duplicate_check: 0
+      duplicate_check_interval: 1800
+
+  # 墨学院模板
+  moxueyuan:
+    # 如果有POST请求的模板
+    template_name:
+      field1: "VALUE1"
+      field2: "VALUE2"

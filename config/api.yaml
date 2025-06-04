@@ -1,0 +1,101 @@
+# api.yaml
+# 基础API配置文件
+api_configs:
+  # 基础配置
+  defaults:
+    timeout: 30
+    retry:
+      max_attempts: 3
+      backoff_factor: 2
+    headers:
+      Content-Type: "application/json"
+      
+  # 魔学院API
+  moxueyuan:
+    base_url: "https://open.moxueyuan.com"
+    endpoints:
+      get_token:
+        path: "/api/v1/connect/get-token"
+        method: "GET"
+        params:
+          # 参数名: 环境变量名
+          corpid: "MOXUEYUAN_CORPID"
+          corpsecret: "MOXUEYUAN_CORPSECRET"
+        response_token_path: "results.access_token"
+        description: "获取access_token"
+      
+      get_exam_statistical:
+        path: "/api/v2/count/statistical"
+        method: "GET"
+        params:
+          access_token: "ACCESS_TOKEN"
+          scene: "examUsers"
+          examId: "EXAM_ID"
+          isrange: "IS_RANGE"
+          page: "PAGE"
+        description: "获取考试统计数据"
+      
+      get_course_state:
+        path: "/api/v2/course/state-query"
+        method: "GET"
+        params:
+          access_token: "ACCESS_TOKEN"
+          courseId: "COURSE_ID"
+          page: "PAGE"
+        description: "获取课程学习状态"
+      
+      get_course_list:
+        path: "/api/v2/course/list"
+        method: "GET"
+        params:
+          access_token: "ACCESS_TOKEN"
+          page: "PAGE"
+          pageSize: "PAGE_SIZE"
+        description: "获取课程列表"
+      
+      get_exam_list:
+        path: "/api/v2/exam/list"
+        method: "GET"
+        params:
+          access_token: "ACCESS_TOKEN"
+          page: "PAGE"
+          pageSize: "PAGE_SIZE"
+        description: "获取考试列表"
+      
+      get_user_list:
+        path: "/api/v2/user/list"
+        method: "GET"
+        params:
+          access_token: "ACCESS_TOKEN"
+          page: "PAGE"
+          pageSize: "PAGE_SIZE"
+        description: "获取用户列表"
+        
+  # 企业微信API
+  wechat:
+    base_url: "https://qyapi.weixin.qq.com"
+    endpoints:
+      get_token:
+        path: "/cgi-bin/gettoken"
+        method: "GET"
+        params:
+          # 参数名: 环境变量名
+          corpid: "WECHAT_CORPID"
+          corpsecret: "WECHAT_CORPSECRET"
+        response_token_path: "access_token"
+        description: "获取access_token, 参数值从环境变量获取"
+      create_user:
+        path: "/cgi-bin/user/create"
+        method: "POST"
+        params:
+          access_token: "ACCESS_TOKEN"
+        post_body: "user_create"  # 引用api_post_bodys.yaml中的模板
+        description: "创建成员"
+      
+      update_user:
+        path: "/cgi-bin/user/update"
+        method: "POST"
+        params:
+          access_token: "ACCESS_TOKEN"
+        post_body: "user_update"
+        description: "更新成员"
