@@ -1,0 +1,242 @@
+daily_database_query:
+  # 大表配置
+  orders:
+    type: large_table
+    queries:
+      date_query: |
+        SELECT DISTINCT DATE(`createdAt`) AS `createdAt`
+        FROM `orders`
+        WHERE updatedAt BETWEEN @start_date AND @end_date
+        AND createdAt BETWEEN @filter_date AND @end_date;
+      data_query: |
+        SELECT `id`, `transaction_id`, `store_id`, `dc_id`, `type`, `is_gift`, `site_id`, `money`, `deposit`, `actual_money`, 
+          `actual_deposit`, `pay_money`, `pay_mode`, `delivery_time`, 
+          CASE WHEN `settlement_time` = '0000-00-00 00:00:00' THEN STR_TO_DATE('1970-01-01 00:00:00', '%Y-%m-%d %H:%i:%s') ELSE `settlement_time` END AS `settlement_time`, 
+          `note`, `serviceman_id`, `status`, `creator`, `creator_emp`, `overbought`, `cancel_reason`, 
+          `purchase_id`, `delivery_receipt_id`, `createdAt`, `updatedAt`, `shop_id`, `transport_charge`, 
+          `presale_id`, `receiver`, 
+          CASE WHEN `receive_time` = '0000-00-00 00:00:00' THEN STR_TO_DATE('1970-01-01 00:00:00', '%Y-%m-%d %H:%i:%s') ELSE `receive_time` END AS `receive_time` 
+        FROM `orders` 
+        WHERE {date_conditions}
+
+  orderitems:
+    type: large_table
+    queries:
+      date_query: |
+        SELECT DISTINCT DATE(`createdAt`) AS `createdAt`
+        FROM `orderitems`
+        WHERE updatedAt BETWEEN @start_date AND @end_date
+        AND createdAt BETWEEN @filter_date AND @end_date;
+      data_query: |
+        SELECT `id`, `parent_id`, `product_id`, `un`, `quantity`, `inv_quantity`, `real_quantity`, `real_ud_quantity`, 
+          `unit_price`, `real_unit_price`, `unit_cost`, `original_unit_price`, `deposit`, `deposit_name`, 
+          `is_update_cost`, `is_sort`, `sorter`, `sort_time`, `mode`, `overbought`, `createdAt`, `updatedAt`, 
+          `is_quotation`, `advance_charge`, `subtotal`
+        FROM `orderitems`
+        WHERE {date_conditions}
+
+  orderreturns:
+    type: large_table
+    queries:
+      date_query: |
+        SELECT DISTINCT DATE(`createdAt`) AS `createdAt`
+        FROM `orderreturns`
+        WHERE updatedAt BETWEEN @start_date AND @end_date
+        AND createdAt BETWEEN @filter_date AND @end_date;
+      data_query: |
+        SELECT `id`, `dc_id`, `site_id`, `order_id`, `store_id`, `item_id`, `product_id`, `quantity`, `ud_quantity`, 
+          `unit_price`, `unit_cost`, `money`, `deposit`, `deposit_quantity`, `delivery_time`, `sign_time`, 
+          `note`, `source_id`, `source_item_id`, `type`, `reason`, `status`, `image`, `mode`, 
+          `settlement_time`, `createdAt`, `updatedAt`, `source`, `creator`, `amount`, `refused_reason`, 
+          `ret_depart`, `workflow_version`, `workflow_id`, `is_recycled`
+        FROM `orderreturns`
+        WHERE {date_conditions}
+
+  deliveryreceipts:
+    type: large_table
+    queries:
+      date_query: |
+        SELECT DISTINCT DATE(`createdAt`) AS `createdAt`
+        FROM `deliveryreceipts`
+        WHERE updatedAt BETWEEN @start_date AND @end_date
+        AND createdAt BETWEEN @filter_date AND @end_date;
+      data_query: |
+        SELECT `id`, `type`, `site_id`, `store_id`, `dc_id`, `status`, `position`, `deliveryman_id`, `claim_time`, `delivery_time`, 
+          `delivery_start`, `delivery_end`, `settlement_time`, `receiver`, `receiver_phone`, `distance`, `deliver_bonus`, 
+          `print_count`, `image`, `createdAt`, `updatedAt`, `outbound_time`, `location_detail`
+        FROM `deliveryreceipts`
+        WHERE {date_conditions}
+
+  deliveryreceiptitems:
+    type: large_table
+    queries:
+      date_query: |
+        SELECT DISTINCT DATE(`createdAt`) AS `createdAt`
+        FROM `deliveryreceiptitems`
+        WHERE updatedAt BETWEEN @start_date AND @end_date
+        AND sort_time BETWEEN @filter_date AND @end_date;
+      data_query: |
+        SELECT `id`, `parent_id`, `product_id`, `quantity`, `ud_quantity`, `real_quantity`, `real_ud_quantity`, 
+          `deposit_name`, `deposit`, `money`, `actual_money`, `is_sort`, `sorter`, `sort_time`, 
+          `createdAt`, `updatedAt`
+        FROM `deliveryreceiptitems`
+        WHERE {date_conditions}
+
+  visitrecorditems:
+    type: large_table
+    queries:
+      date_query: |
+        SELECT DISTINCT DATE(`createdAt`) AS `createdAt`
+        FROM `visitrecorditems`
+        WHERE updatedAt BETWEEN @start_date AND @end_date;
+      data_query: |
+        SELECT `id`, `parent_id`, `visit_time`, `content`, `location`, `image`, `comment`, `visitor`, 
+          `createdAt`, `updatedAt`, `remarks`, `abnormal_cause`, `is_abnormal`, `plan_id`, 
+          `location_detail`, `sub_id`, `dc_id`
+        FROM `visitrecorditems`
+        WHERE {date_conditions}
+
+  largecsfollowups:
+    type: large_table
+    queries:
+      date_query: |
+        SELECT DISTINCT DATE(`createdAt`) AS `createdAt`
+        FROM `largecsfollowups`
+        WHERE updatedAt BETWEEN @start_date AND @end_date;
+      data_query: |
+        SELECT `id`, `obj_id`, `obj_type`, `clue_id`, `obj_name`, `sub_id`, `link_type`, `lng`, `lat`, `ad_code`, 
+          `district`, `link_user_id`, `purpose`, `content`, `files`, `link_time`, `principal_id`, `plan_id`, 
+          `createdAt`, `updatedAt`
+        FROM `largecsfollowups`
+        WHERE {date_conditions}
+
+  # 小表配置
+  deliveryroutes:
+    type: small_table
+    query: |
+      SELECT `id`, `dc_id`, `title`, `store_ids`, `creator`, `createdAt`, `updatedAt`, `code` 
+      FROM `deliveryroutes` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  stores:
+    type: small_table
+    query: |
+      SELECT `id`, `type`, `name`, `address`, `location`, `lng`, `lat`, `adcodes`, `districts`, `createdAt`, `updatedAt`, 
+        `dc_id`, `remark`, `level`, `point`, `mode`, `enable`, `service_type`, `standard`, `salesman_id`, `serviceman_id`, 
+        `deliveryman_id`, `price`, `decision_person`, `dp_contact_type`, `dp_contact`, `source`, `_id`, `dp_role`, 
+        `possible`, `service_del`, `cooperates_difficulty`, `image`, `tag`, `owner_id`, `distance`, `deliver_bonus`, 
+        `channel`, `old_dc_id`, `old_serviceman_id`, `transfer_note`, `transfer_at`, `activated_at`, `assign_at`, 
+        `is_agreement`, `flag_id`, `enable_cod`, `factor`, `is_new`, `staff_meal`, `lock_time`, `flow_type`, 
+        `delay_count`, `dining_tables`, `status`, `refused_reason`, `transfer_reason`, `upload_receipt`, 
+        `enterprise_id`, `brand_id`, `manage_type`, `delivery_route_id`, `delivery_time`, `factoring_at`, 
+        `transfer_deal_at`, `external_id`, `external_name`, `business_type`, `receive_at`, `lending_service_id`, 
+        `zcw_pay_enable`, `settlement_type` 
+      FROM `stores` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  tags:
+    type: small_table
+    query: |
+      SELECT `id`, `name`, `createdAt`, `updatedAt`, `type_id`, `status`, `sort` 
+      FROM `tags` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  tagtypes:
+    type: small_table
+    query: |
+      SELECT `id`, `name`, `createdAt`, `updatedAt`, `status`, `sort` 
+      FROM `tagtypes` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  userportraits:
+    type: small_table
+    query: |
+      SELECT `id`, `user_id`, `store_id`, `capita_consumption`, `table_number`, `active_within_30`, `active_within_90`, 
+        `first_order_date`, `last_order_date`, `orders_within_7`, `orders_within_30`, `orders_within_90`, 
+        `orders_count`, `gmv_within_7`, `gmv_within_30`, `gmv_within_90`, `gmv_sum`, `createdAt`, `updatedAt`, 
+        `sub_id`, `orders_within_15`, `gmv_within_15`, `last_link_time` 
+      FROM `userportraits` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  sites:
+    type: small_table
+    query: |
+      SELECT `id`, `name`, `alias`, `sub_id`, `manager`, `address`, `status`, `biz_mode`, `deliver_time`, 
+        `createdAt`, `updatedAt`, `type`, `performance_time` 
+      FROM `sites` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  products:
+    type: small_table
+    query: |
+      SELECT `id`, `current_mode`, `nm_mode`, `lm_mode`, `name`, `alias`, `type`, `sub_id`, `dc_id`, `spu_id`, 
+        `image`, `spec`, `ud`, `un`, `status`, `detail`, `uuid`, `carousel`, `brand_id`, `brand_name`, 
+        `is_standard`, `is_gift`, `weight`, `enable`, `createdAt`, `updatedAt`, `origin_name`, `is_pop`, 
+        `source`, `shop_id`, `material_code` 
+      FROM `products` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  categories:
+    type: small_table
+    query: |
+      SELECT `id`, `level`, `first_id`, `second_id`, `parent_id`, `name`, `enable`, `createdAt`, `updatedAt` 
+      FROM `categories` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  delivercenters:
+    type: small_table
+    query: |
+      SELECT `id`, `type`, `sub_id`, `regional_id`, `name`, `alias`, `address`, `manager`, `enable`, 
+        `createdAt`, `updatedAt`, `lng`, `lat`, `area` 
+      FROM `delivercenters` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  regionals:
+    type: small_table
+    query: |
+      SELECT `id`, `name`, `sub_id`, `createdAt`, `updatedAt` 
+      FROM `regionals` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  subsidiaries:
+    type: small_table
+    query: |
+      SELECT `id`, `name`, `adcode`, `createdAt`, `updatedAt`, `lng`, `lat` 
+      FROM `subsidiaries` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  roles:
+    type: small_table
+    query: |
+      SELECT `id`, `name`, `type`, `value`, `createdAt`, `updatedAt`, `status` 
+      FROM `roles` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  visitrecords:
+    type: small_table
+    query: |
+      SELECT `id`, `target_type`, `target_id`, `target_name`, `address`, `extras`, `createdAt`, `updatedAt`, 
+        `focus_category`, `creator`, `policymaker`, `intention`, `last_record_time` 
+      FROM `visitrecords` 
+      WHERE updatedAt BETWEEN @start_date AND @end_date;
+
+  # 全表刷新配置
+  employeeroles:
+    type: full_refresh
+    query: |
+      SELECT `id`, `employee_id`, `role_id`, `createdAt`, `updatedAt` 
+      FROM `employeeroles`;
+
+  employees:
+    type: full_refresh
+    query: |
+      SELECT `id`, `site_id`, `dc_id`, `position_id`, `department_id`, `name`, `phone`, `pwd`, `gender`, 
+        `birthday`, `entry_time`, `status`, `openid`, `code`, `is_weigh`, `_id`, `sale_target`, `version`, 
+        `createdAt`, `updatedAt`, `note`, `sub_id`, `qr_code`, `wework_id`, `line_type`, `job_no` 
+      FROM `employees`;
+
+  storetags:
+    type: full_refresh
+    query: |
+      SELECT `id`, `store_id`, `tag_id`, `createdAt`, `updatedAt` 
+      FROM `storetags`; 

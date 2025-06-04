@@ -1,0 +1,18 @@
+daily_dwh_query:
+  store_info:
+    description: "客户信息刷新SQL"
+    compare_columns: "store_id"
+    unique_columns: ["store_id"]
+    sql_file: "refresh_zcw/store_info_refresh.sql"
+    conn: "myDWH_Tencent"
+    db: "postgres"
+    schema: "zcwhr_dwh"
+    
+  order_fact:
+    description: "订单事实表刷新SQL"
+    compare_columns: "order_id"
+    unique_columns: ["order_id", "delivery_id", "store_id", "product_id", "order_return_id"]
+    sql_file: "refresh_zcw/order_fact_refresh.sql"
+    conn: "myDWH_Tencent"
+    db: "postgres"
+    schema: "zcwhr_dwh"

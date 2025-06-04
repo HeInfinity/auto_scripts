@@ -1,0 +1,19 @@
+sql_collections:
+  metabase:
+    description: "Metabase报表相关SQL"
+    sql_files:
+      "注册客户.sql":
+        description: "统计注册客户相关指标的SQL"
+        path: "metabase/注册客户.sql"
+        
+      "新客留存率.sql":
+        description: "计算新客户留存率的SQL"
+        path: "metabase/新客留存率.sql"
+        
+      "上游供应商.sql":
+        description: "统计上游供应商相关数据的SQL"
+        path: "metabase/上游供应商.sql"
+        
+      "经营岗业绩数据.sql":
+        description: "统计经营岗位业绩数据的SQL"
+        path: "metabase/经营岗业绩数据.sql"
