@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 当需要连接postgresql时
+## 使用db_conn.py模块进行连接
+ - 使用 get_connection() 而不是 get_pool()
+ - 使用 cursor() 方法在连接对象上而不是连接池对象上
+ - 在 finally 块中确保释放连接
+ - 使用 async with 语句自动管理游标资源
+
+## 在使用数据库连接池时，需要遵循正确的资源获取和释放顺序：
+1. 先获取连接
+2. 再获取游标
+3. 使用完后按相反顺序释放资源

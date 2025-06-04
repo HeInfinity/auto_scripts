@@ -1,0 +1,156 @@
+---
+description: 
+globs: **/*.py
+alwaysApply: false
+---
+# 注释规范
+1. 以简体中文为语言, 写出更加详尽的注释.
+2. 在注释中, 只需要说明如何做而不是解释为什么这么做.
+3. 必须使用英文标点符号书写注释, 比如`',:"?+-*/()`等; 严禁使用中文基本标点符号`‘，：“？（）`.
+
+# 设计要求
+0. 使用最新的Python 3语法特性和最佳实践, 遵循12-Factor应用原则和python社区PEP 8规范, 函数命名严禁使用数字后缀.
+1. 代码中不允许有任何敏感信息硬编码在代码中, 所有的敏感信息都需要从对应的yaml配置文件中读取. 对于密码这类加密敏感信息从.env文件读取, 下面是.env文件和.yaml配置文件的示例
+``` .env
+DB_HOST="your_host"
+DB_PASSWORD="your_password"
+```
+```yaml
+wework_hjq:  # 一组完整的邮件配置
+  smtp:  # SMTP服务器配置
+    server: smtp.exmail.test.com
+    port: 587
+    use_tls: true
+    use_ssl: false
+    timeout: 10
+  sender:  # 发件人配置
+    - name: 'test'
+      email: 'test@test.cn'
+  receivers:  # 收件人配置
+    default:  # 默认收件人组
+      - name: 'test'
+        email: 'test@test.cn'
+```
+2. 模块化, 可复用的代码是首要考虑的.
+3. /scripts目录作为脚本主入口执行, /jobs目录中的脚本都能独立运行但一般被/scripts目录中的脚本调用, /modules中的脚本都是可复用的模块. 由于会跨平台跨设备使用这些脚本, 所以代码设计逻辑是: 动态获取当前脚本所在目录, 并根据相对路径设置sys.path
+比如连接mysql和postgresql数据库时, 必须引用\Python\auto_scripts\modules\db_conn.py, 模块导入示例如下:
+## 示例(导入数据库连接脚本)
+```python
+import sys
+import os
+
+# 动态获取当前脚本所在目录，并根据相对路径设置sys.path
+def load_sys_path():
+    """动态查找项目根目录并将 config 目录添加到 sys.path"""
+    project_root_name = 'Python'
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    while True:
+        if os.path.basename(current_dir) == project_root_name:
+            project_root = current_dir
+            break
+        new_dir = os.path.dirname(current_dir)
+        if new_dir == current_dir:
+            raise RuntimeError(f"无法找到包含目录 '{project_root_name}' 的项目根目录")
+        current_dir = new_dir
+        
+    # 需要添加的路径列表
+    paths_to_add = [
+        os.path.join(project_root, 'auto_scripts'),
+        os.path.join(project_root, 'auto_scripts', 'jobs'),
+        os.path.join(project_root, 'auto_scripts', 'modules')
+    ]
+    
+    # 添加路径并确保唯一性
+    for path in paths_to_add:
+        if path not in sys.path:
+            sys.path.append(path)
+
+# 调用函数加载配置
+load_sys_path()
+from modules.db_conn import DBManager
+from modules.log_tools import setup_logger
+```
+4. 在加载并解析特定配置文件(如数据库配置)时, 仍然需要先找到根目录后添加配置文件的相对路径, 拼凑出完整链接. 但是方式与模块导入不同, 下面是示例文件
+```python
+import sys
+import os
+
+# 动态查找项目根目录并将 config 目录添加到 sys.path
+def find_project_root(root_name='Python'):
+    """
+    查找项目根目录
+    :param root_name: 项目根目录名称
+    :return: 项目根目录的完整路径
+    """
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if os.path.basename(current_dir) == root_name:
+            return current_dir
+        new_dir = os.path.dirname(current_dir)
+        if new_dir == current_dir:
+            raise RuntimeError(f"无法找到包含目录 '{root_name}' 的项目根目录")
+        current_dir = new_dir
+
+def load_email_config(env: str = 'default', config_subpath='auto_scripts/config/email.yaml') -> Dict:
+    """
+    加载邮件配置
+    :param env: 环境名称, 默认为 'default'
+    :param config_subpath: 配置文件相对于项目根目录的路径
+    :return: 配置字典
+    """
+    project_root = find_project_root()
+    config_path = os.path.join(project_root, config_subpath)
+    
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"未找到配置文件: {config_path}")
+        
+    with open(config_path, 'r', encoding='utf-8') as f:
+        configs = yaml.safe_load(f)
+        
+    if env not in configs['smtp']:
+        raise ValueError(f"配置文件中不存在名为 '{env}' 的SMTP配置")
+        
+    return configs
+```
+5. 以模块化的思路设计Python脚本, 方便其他脚本能够复用. 比如数据库对象应该设计一个Python脚本写一个数据库的类, 以方便其他脚本调用. 再比如, 有很多场景需要使用API, 那么设计获取API的token也要模块化方便复用.
+6. 查询数据的时候可以一次性完成, 但是插入数据的时候默认每次插入10000行(变量可自行调整).
+7. 如果代码可复用且独立运行时无意义则存放在/modules目录, 如果被调用但不是主要执行入口则作为job放入/jobs目录, 如果作为主要执行入口则放入/scripts目录. 以上是文件默认存放目录, 如果我明确了存放位置则根据我的要求设计.
+8. 如果库没有用到, 就不要import.
+9. 在设计log日志时, 
+
+# 其他规定
+1. 由于文件名或函数名有时候可能很长, 不方便沟通. 写的时候这些名字是全称, 但是沟通的时候可以用简称. 比如daily_database_sync.py这个文件名, 沟通的时候可以简化成dds, 但是实际写的时候仍然是daily_database_sync.py.
+
+# 日志规定
+1. 日志格式简化为：[日期 时间] [应用名] [日志级别] 消息, 时间格式应为: YYYY-MM-DD HH:MM:SS, 示例如下
+```bash
+[2024-03-14 10:30:00] [moxueyuan] [INFO] 开始获取access_token
+[2024-03-14 10:30:01] [moxueyuan] [INFO] 成功获取token: xxx
+
+[2024-03-14 10:30:00] [moxueyuan] [ERROR] 获取token失败: 400 Bad Request
+```
+
+# api使用规范
+1. 通过post_body字段建立api.yaml与api_post_body.yaml的关联, 示例如下(需要根据两个yaml文件中的实际字段名进行修改)
+```python
+def load_api_config(api_name: str, endpoint: str) -> dict:
+    """加载API配置"""
+    api_config = load_yaml("api.yaml")
+    return api_config["api_configs"][api_name]["endpoints"][endpoint]
+
+def load_body_template(system: str, template_name: str) -> dict:
+    """加载请求体模板"""
+    templates = load_yaml("api_post_body.yaml")
+    return templates["templates"][system][template_name]
+
+def make_api_request(api_name: str, endpoint: str, **params):
+    """发起API请求"""
+    config = load_api_config(api_name, endpoint)
+    
+    if config["method"] == "POST" and "body_template" in config:
+        body = load_body_template(api_name, config["body_template"])
+        # 替换模板中的占位符
+        body = replace_placeholders(body, params)
+        # 发起POST请求...
+```
