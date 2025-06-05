@@ -21,6 +21,7 @@ update.md
 # 特定文件
 environment.yaml
 .gitignore
+.cursorignore
 
 # 其他文件
 /jobs/route*
