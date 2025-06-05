@@ -72,7 +72,7 @@ api_configs:
         description: "获取用户列表"
         
   # 企业微信API
-  wechat:
+  wework:
     base_url: "https://qyapi.weixin.qq.com"
     endpoints:
       get_token:
@@ -80,8 +80,8 @@ api_configs:
         method: "GET"
         params:
           # 参数名: 环境变量名
-          corpid: "WECHAT_CORPID"
-          corpsecret: "WECHAT_CORPSECRET"
+          corpid: "WEWORK_CORPID"
+          corpsecret: "WEWORK_CORPSECRET"
         response_token_path: "access_token"
         description: "获取access_token, 参数值从环境变量获取"
       create_user:
