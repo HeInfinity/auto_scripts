@@ -3,6 +3,8 @@ description:
 globs: 
 alwaysApply: true
 ---
+**最后更新：2025/06/01**
+
 # 根目录
 根目录与传统定义不同, 我这里的根目录指的是通用目录/python. 原因是我会跨设备使用这些文件, 无论在哪个设备都会有/python目录, 所以我们约定根目录是/python
 

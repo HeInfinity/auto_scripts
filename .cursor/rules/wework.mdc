@@ -1,0 +1,48 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 开发前必读
+
+**最后更新：2023/10/19**
+
+## 开发文档阅读说明
+
+- **所有的接口**均使用HTTPS协议、JSON数据格式、UTF8编码. 接口说明格式如下：
+
+```plaintext
+请求方式: GET/POST (HTTPS)
+请求地址: https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=ID&corpsecret=SECRET
+请求头说明:
+...
+请求参数说明:
+...
+权限说明:
+...
+返回结果:
+...
+参数说明:
+...
+```
+
+### 说明
+
+1. **请求方式**  
+   标明接口调用的HTTP方法, 区分HttpGet/HttpPost请求. 所有的请求都为https协议. 
+
+2. **请求地址**  
+   参数中标注大写的单词, 表示为需要替换的变量. 在上面的例子中ID及SECRET为需要替换的变量, 根据实际获取的值替换. 例如, 这里要获取到的ID=wwabcdzxdkrsdv, SECRET=vQT_03RDVA3uE6JDASDASDAiXUvcvqV8mDgLdLI, 那么接口的请求地址发送时为：
+
+   ```plaintext
+   https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=wwabcdzxdkrsdv&corpsecret=vQT_03RDVA3uE6JDASDASDAiXUvcvqV8mDgLdLI
+   ```
+
+3. **请求包体/参数说明**  
+   标明请求参数及示例说明. 参数说明的包包括字段含义、取值范围等, 开发者在设计数据结构时, 应参考该定义范围. 
+
+4. **权限说明**  
+   标明接口的使用范围, 开发者在调用时需留意问题范围及场景. 例如, 发送消息接口的使用范围必须是已获取到access_token, 发送消息接口的范围必须是向已获取到access_token的应用发送消息. 
+
+5. **返回结果说明**  
+   标明返回包的定义及示例说明. 标明返回包的字段含义及取值范围. 所有接口的返回包中均包含字段`errcode`和`errmsg`. 开发者需根据`errcode`在不同的场景下判断调用是否成功（errcode=0表示成功）, 而`errmsg`仅作为参考, 后续可能会有变动, 因此不可作为是否调用成功的判断. 
