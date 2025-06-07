@@ -32,6 +32,7 @@ def load_sys_path():
     for path in paths_to_add:
         if path not in sys.path:
             sys.path.append(path)
+    return project_root
 
 # 调用函数加载配置
 load_sys_path()
@@ -141,8 +142,10 @@ def job():
     
     try:
         # 执行 Optimize_Database.py 并将输出写入日志
+        project_root = load_sys_path()
+        sub_script = os.path.join(project_root, 'auto_scripts', 'jobs', 'optimize', 'optimize_mydb.py')
         process = subprocess.Popen(
-            ['python', os.path.join('jobs', 'optimize', 'optimize_mydb.py')],
+            ['python', sub_script],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
 
