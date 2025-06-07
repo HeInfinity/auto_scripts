@@ -33,9 +33,9 @@
 
 - **wework/** 企业微信相关自动化脚本
   - `get_wework_token.py` 获取企业微信 token
-- **moxueyuan/** 慕学苑相关自动化脚本
+- **moxueyuan/** 魔学院相关自动化脚本
   - `get_mxy_employee.py` 获取员工信息
-  - `get_mxy_token.py` 获取慕学苑 token
+  - `get_mxy_token.py` 获取魔学院 token
 - **optimize/** 数据库优化与分析
   - `analyze_mydb.py` 数据库分析
   - `optimize_mydb.py` 优化脚本
@@ -96,13 +96,3 @@
 - **SQL 管理**：所有 SQL 脚本与配置集中在 `/sql` 目录
 
 ---
-
-## 维护与贡献
-
-- 如需新增功能，请先阅读 `.cursor/rules` 下的开发规范
-- 建议所有新功能、优化均补充 README 说明
-- 代码提交前请自测，确保无敏感信息泄露
-
----
-
-如有疑问或建议，请联系项目维护者。
