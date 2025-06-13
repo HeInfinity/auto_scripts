@@ -26,3 +26,4 @@ environment.yaml
 # 其他文件
 /jobs/route*
 /modules/auto*
+readme.md
