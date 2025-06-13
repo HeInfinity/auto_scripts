@@ -3,45 +3,60 @@ description:
 globs: **/*.sql
 alwaysApply: false
 ---
-**最后更新：2025/06/01**
+**最后更新: 2025/06/13**
 
 # 注释规范
-1. 以简体中文为语言, 写出更加详尽的注释.
-2. 在注释中, 只需要说明如何做而不是解释为什么这么做.
-3. 必须使用英文基本标点符号书写注释, 比如`',:"?+-*/()`等; 严禁使用中文基本标点符号`‘，：“？（）`.
+1. 以简体中文为语言, 写出详尽的注释.
+2. 在注释中, 只需要说明对应代码的用途, 无需解释为什么.
+3. 必须使用半角标点符号写注释和日志内容, 比如[',:"?+-*/()]等; 严禁使用全角标点符号.
 4. 如果这段SQL是mysql, 那么在开头注释说明 -- MySQL; 如果是postgresql, 那么在开头注释说明`-- PostgreSQL`.
 
 # 使用规范
-0. 所有的表名和字段名, 都使用全小写 + 下划线分隔​​(snake_case).
-1. 在字段前必须添加对应的表, 无论这个表是来自数据库的物理表, 还是CTEs创建的虚拟表. 对于postgresql来说, 如果我给的SQL中明确提及了schema, 也需要在表前添加schema.
+1. 严格按照@SQL样式指南中规范(尤其是关键字/函数等必须大写). 所有的表名和字段名, 都使用全小写 + 下划线分隔​​(snake_case).
+2. 在字段前必须添加对应的表, 无论这个表是来自数据库的物理表, 还是CTEs创建的虚拟表. 对于postgresql来说, 如果我给的SQL中明确提及了schema, 也需要在表前添加schema.
+在mysql中, 使用表或字段时必须使用``括起来; 同样, 在postgresql中, 使用schema或表或字段时必须使用""括起来.
 ## 示例
-```
-    table是数据库的物理表, ctes是创建的虚拟表, 字段store_id
-    mysql数据库: `table`.`store_id`, `ctes`.`store_id`
-    postgresql数据库: "table"."store_id", "ctes"."store_id"
-```
-2. 别名时, 必须使用关键字AS: 无论是字段别名, CTEs别名, 子查询别名都必须使用AS.
-3. 在mysql中, 使用表或字段时必须使用``包裹; 同样, 在postgresql中, 使用表或字段时必须使用""包裹.
-4. 不允许使用各类子查询, 使用CTEs代替.
-5. 在CTEs中, 也不允许使用各类子查询仍然必须使用CTEs.
-6. 使用CTEs时, SQL最后使用`SELECT * FROM last_cte`来查询(不一定以last_cte来命名最后一个表), 以方便我能够审核每个CTE的查询结果是否正确.
-7. 严格按照[SQL样式指南](mdc:https:/www.sqlstyle.guide/zh)中规范(尤其是关键字/函数等必须大写).
-8. 在JOIN的时候, 不允许使用USING关键字, 必须使用JOIN ON.
-9. 如果我明确提及使用变量时, 都在SQL最顶端进行变量声明和赋值. MySQL中用SET, PostgreSQL在CETs赋值后使用CROSS JOIN.
-10. 不允许自主生成中文别名, 也不允许修改任何中文别名.
-11. 在GROUP BY和ORDER BY关键字中, 尽量使用数字引用来代替字段名引用.
+    假设: table是数据库中的物理表, ctes是数据查询时创建的虚拟表, public是pgsql中的schema, 字段store_id
+    ```
+        mysql数据库: `table`.`store_id`, `ctes`.`store_id`
+        postgresql数据库: "public"."table"."store_id", "public"."ctes"."store_id"
+    ```
+3. 无论别名对象是字段/CTEs/表/子查询都必须使用关键字AS.
+4. 不允许使用子查询, 使用CTEs代替. 在CTEs中, 也不允许使用子查询, 必须使用CTEs进行嵌套. CTEs之间需要空一行隔开方便阅读
+## 示例
+    ```
+        WITH `ctes1` AS (
+            ...
+        ),
 
-# 用户习惯
-1. CASE WHEN在同一行, 之后每个WEHN都与第一个WHEN对齐, 同一个WHEN和THTNE必须保证在同一行; 如果只有一个条件, 那么只需要一行即可
+        `ctes2` AS (
+            ...
+        )
+
+        SELECT *
+          FROM `ctes2`;
+    ```
+5. 使用CTEs时, SQL最后使用`SELECT * FROM last_cte`来查询(不一定以last_cte来命名), 以方便我能够审核每个CTE的查询结果是否正确.
+6. 在JOIN的时候, 不允许使用USING关键字, 必须使用JOIN ON.
+7. 不允许自主生成中文别名, 且不允许修改任何中文别名.
+
+# 用户SQL书写习惯
+1. 在GROUP BY和ORDER BY关键字中, 使用数字来代替字段名引用.
 ## 示例
-```sql
-    CASE
-      WHEN ... THEN ...
-      WHEN ... THEN ...
-      ELSE ... THEN ...
-    END
-```
-2. 按照以下格式帮我书写SQL, 所有关键字的最后一个字母在同一列, 确保所有缩进按以下示例一致
+    ```sql
+        GROUP BY 1, 2
+        ORDER BY 1, 2, 3
+    ```
+2. CASE语句按照示例中的格式
+## 示例
+    ```sql
+        CASE
+        WHEN ... THEN ...
+        WHEN ... THEN ...
+        ELSE ... THEN ...
+        END
+    ```
+3. SQL格式按照以下缩进书写
 ## 示例
 ```sql
 SELECT
@@ -52,8 +67,22 @@ SELECT
    AND
  GROUP BY
 HAVING
+ ORDER BY
  LIMIT
 ```
+4. 设置变量, 将变量放在SQL的最前面. MySQL中用SET, PostgreSQL在CETs中进行查询.
+## 示例
+    ```mysql
+        SET @start_date = '2023-02-01 00:00:00';
+    ```
+    ```postgresql
+        WITH "date_range" AS (
+            SELECT 
+            {{start_date}}::TIMESTAMP AS "start_date"
+        ),
+        ...
+        WHERE "dwd"."delivercenter_info"."sub_name" IN (SELECT "sub_name"."sub_name" FROM "sub_name")
+    ```
 
 
 
