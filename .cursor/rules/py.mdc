@@ -5,6 +5,8 @@ alwaysApply: false
 ---
 **最后更新: 2025/06/13**
 
+- MCP使用sequential-thinking工具中的sequentialthinking功能
+
 # 注释规范
 1. 以简体中文为语言, 写出详尽的注释.
 2. 在注释中, 只需要说明对应代码的用途, 无需解释为什么.
@@ -66,6 +68,7 @@ alwaysApply: false
         for path in paths_to_add:
             if path not in sys.path:
                 sys.path.append(path)
+        return project_root
 
     # 调用函数加载配置
     load_sys_path()
