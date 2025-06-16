@@ -1,5 +1,6 @@
 import os
 import sys
+import logging
 
 # 添加项目根目录到Python路径
 def load_sys_path():
@@ -41,8 +42,16 @@ from modules.db_conn import DBManager
 from modules.log_tools import setup_logger
 from modules.access_token import create_token_manager
 
-# 获取logger
+# 获取logger - 使用规则要求的日志格式
 logger = setup_logger(__file__)
+
+# 重新配置logger格式以符合规则要求
+for handler in logger.handlers:
+    formatter = handler.formatter
+    if formatter:
+        # 修改为规则要求的格式: [日期 时间] [应用名] [日志级别] 消息
+        new_formatter = logging.Formatter('[%(asctime)s] [token] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+        handler.setFormatter(new_formatter)
 
 async def save_token_to_database(db_manager: DBManager, access_token: str, requested_at: datetime.datetime, expires_at: datetime.datetime):
     """保存令牌到数据库"""
@@ -126,8 +135,11 @@ async def main():
             logger.info("开始获取新的token")
             token, start_time, end_time = await token_manager.get_token()
             await save_token_to_database(db_manager, token, start_time, end_time)
+            logger.info(f"成功获取新token: {token}")
+        else:
+            logger.info(f"使用现有有效token: {token}")
             
-        logger.info("token处理完成！")
+        logger.info("token处理完成!")
         
     except Exception as e:
         logger.error(f"处理token时发生错误: {e}")
