@@ -50,7 +50,9 @@ def setup_logger(script_name, parent_logger=None):
     console_handler.setLevel(logging.INFO)
     
     # 创建格式化器
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    # 获取应用名(从脚本名中提取)
+    app_name = os.path.splitext(os.path.basename(script_name))[0]
+    formatter = logging.Formatter(f'[%(asctime)s] [{app_name}] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     
     # 将格式化器添加到处理器
     file_handler.setFormatter(formatter)
