@@ -93,13 +93,26 @@ class DWHSyncScript:
         """记录脚本输出到日志"""
         if stdout_text:
             for line in stdout_text.splitlines():
-                # 只输出原始内容, 不加前缀
-                self.logger.handlers[0].stream.write(line.strip() + '\n')
-                self.logger.handlers[0].stream.flush()
+                if line.strip():  # 只记录非空行
+                    # 检查是否已经是完整的日志格式（以[开头且包含] [）
+                    if line.startswith('[') and '] [' in line:
+                        # 直接写入日志文件，避免双重时间戳
+                        self.logger.handlers[0].stream.write(line.strip() + '\n')
+                        self.logger.handlers[0].stream.flush()
+                    else:
+                        # 不是完整格式，使用logger记录
+                        self.logger.info(line.strip())
         if stderr_text:
             for line in stderr_text.splitlines():
-                self.logger.handlers[0].stream.write(line.strip() + '\n')
-                self.logger.handlers[0].stream.flush()
+                if line.strip():  # 只记录非空行
+                    # 检查是否已经是完整的日志格式
+                    if line.startswith('[') and '] [' in line:
+                        # 直接写入日志文件，避免双重时间戳
+                        self.logger.handlers[0].stream.write(line.strip() + '\n')
+                        self.logger.handlers[0].stream.flush()
+                    else:
+                        # 不是完整格式，使用logger记录
+                        self.logger.error(line.strip())
                 
     def _parse_log_content(self, log_content: List[str], start_time: datetime) -> Dict[str, List[str]]:
         """解析日志内容"""
@@ -113,27 +126,47 @@ class DWHSyncScript:
         }
         
         for line in log_content:
-            # 解析日志时间
+            # 解析日志时间，只处理本次执行期间的日志
             try:
-                log_time_str = line.split()[0] + ' ' + line.split()[1]
-                log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
+                line_stripped = line.strip()
+                if not line_stripped:
+                    continue
                 
-                # 只处理start_time之后的日志
-                if log_time >= start_time:
-                    if "代码总执行时间" in line:
-                        parsed_logs['total_times'].append(line.strip())
-                    elif "错误信息" in line:
-                        parsed_logs['errors'].append(line.strip())
-                    elif "同步时间范围" in line:
-                        parsed_logs['days_interval'].append(line.strip())
-                    elif "需要插入的记录数" in line:
-                        parsed_logs['data_range'].append(line.strip())
-                    elif "从个人数据库 SQL 查询花费时间" in line:
-                        parsed_logs['get_data_times'].append(line.strip())
-                    elif "结束，耗时" in line:
-                        parsed_logs['query_times'].append(line.strip())
+                # 提取日志时间进行过滤
+                log_time = None
+                if line_stripped.startswith('[') and '] [' in line_stripped:
+                    # 处理[时间] [应用名] [级别]格式
+                    time_end = line_stripped.find('] [')
+                    if time_end > 0:
+                        log_time_str = line_stripped[1:time_end]
+                        log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
+                else:
+                    # 处理时间 级别格式
+                    parts = line_stripped.split()
+                    if len(parts) >= 3:
+                        try:
+                            log_time_str = parts[0] + ' ' + parts[1]
+                            log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
+                        except ValueError:
+                            continue
+                
+                # 只处理本次执行开始时间之后的日志
+                if log_time and log_time >= start_time:
+                    # 根据关键词匹配，收集相关日志
+                    if "代码总执行时间" in line_stripped:
+                        parsed_logs['total_times'].append(line_stripped)
+                    elif "错误信息" in line_stripped:
+                        parsed_logs['errors'].append(line_stripped)
+                    elif "同步时间范围" in line_stripped:
+                        parsed_logs['days_interval'].append(line_stripped)
+                    elif "需要插入的记录数" in line_stripped or "需要更新的记录数" in line_stripped:
+                        parsed_logs['data_range'].append(line_stripped)
+                    elif "从个人数据库 SQL 查询花费时间" in line_stripped:
+                        parsed_logs['get_data_times'].append(line_stripped)
+                    elif "结束，耗时" in line_stripped:
+                        parsed_logs['query_times'].append(line_stripped)
                         
-            except (ValueError, IndexError):
+            except Exception:
                 continue  # 跳过无法解析的行
                 
         return parsed_logs
@@ -141,12 +174,24 @@ class DWHSyncScript:
     async def _send_execution_email(self, success: bool, start_time: datetime) -> None:
         """发送执行结果邮件"""
         try:
-            # 读取日志文件
-            log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'logs',
-                                  f"{os.path.splitext(os.path.basename(__file__))[0]}.log")
+            # 等待日志完全写入文件
+            await asyncio.sleep(2)
             
-            with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-                log_content = f.readlines()
+            # 构建日志文件路径
+            script_name = os.path.splitext(os.path.basename(__file__))[0]
+            log_file = os.path.join(project_root, 'auto_scripts', 'logs', f"{script_name}.log")
+            
+            if not os.path.exists(log_file):
+                # 尝试备用路径
+                log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'logs',
+                                      f"{script_name}.log")
+            
+            if os.path.exists(log_file):
+                with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+                    log_content = f.readlines()
+            else:
+                self.logger.error(f"无法找到日志文件: {log_file}")
+                log_content = []
                 
             # 解析日志内容
             parsed_logs = self._parse_log_content(log_content, start_time)
@@ -190,6 +235,11 @@ class DWHSyncScript:
             
             # 连接所有部分
             log_lines = '\n'.join(email_content)
+            
+            # 如果没有解析到任何有用的日志内容，添加基本执行信息
+            if not log_lines.strip():
+                self.logger.warning("未解析到有用的日志内容，使用基本执行信息")
+                log_lines = f"脚本执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n执行状态: {'成功' if success else '失败'}"
             
             # 生成邮件内容
             execution_result = "脚本执行成功, 但出现错误" if parsed_logs['errors'] else f"脚本执行{'成功' if success else '失败'}"
