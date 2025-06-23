@@ -123,11 +123,63 @@ alwaysApply: false
 
 # 日志规范
 1. 日志格式简化为：[日期 时间] [应用名] [日志级别] 消息, 时间格式应为: YYYY-MM-DD HH:MM:SS, 示例如下
-    ```bash
-    [2024-03-14 10:30:00] [moxueyuan] [INFO] 开始获取access_token
-    [2024-03-14 10:30:01] [moxueyuan] [INFO] 成功获取token: xxx
+    ```
+    [script时间] [script名] [级别] [子脚本时间] [子脚本名] [级别] 实际内容
+    ```
+    通用示例代码如下:
+    ```python
+    def collect_log_info_from_output(output_lines: List[str]) -> Dict[str, List[str]]:
+        """
+        直接从子脚本输出中收集并分类日志信息
+        :param output_lines: 子脚本的输出行列表  
+        :return: 分类后的日志信息
+        """
+        # 根据实际需要的关键字进行分类
+        target_logs = []
+        error_logs = []
+        
+        for line in output_lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # 根据具体业务需求添加关键字匹配
+            if "关键字1" in line:
+                target_logs.append(line)
+            elif "错误" in line or "ERROR" in line:
+                error_logs.append(line)
+                
+        return {'target_logs': target_logs, 'error_logs': error_logs}
 
-    [2024-03-14 10:30:00] [moxueyuan] [ERROR] 获取token失败: 400 Bad Request
+    def job():
+        """主要任务函数"""
+        start_time = datetime.now(timezone)
+        logger.info("开始执行wrapper脚本")
+        
+        try:
+            # 执行子脚本
+            process = subprocess.Popen(
+                ['python', sub_script_path],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            
+            stdout, stderr = process.communicate()
+            
+            # 解析输出（不记录到wrapper的日志中）
+            stdout_lines = parse_output(stdout)
+            stderr_lines = parse_output(stderr) 
+            all_output_lines = stdout_lines + stderr_lines
+            
+            logger.info("子脚本执行完毕")
+            
+            # 直接从输出解析信息
+            log_info = collect_log_info_from_output(all_output_lines)
+            
+            # 生成邮件内容（直接使用原始日志）
+            email_body = format_email_body(log_info, True)
+            
+        except Exception as e:
+            logger.error(f"执行失败: {str(e)}")
     ```
 
 # api使用规范

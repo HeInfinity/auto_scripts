@@ -1,0 +1,91 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+### 1. **双重日志包装问题**
+**原因**: script脚本通过subprocess执行子脚本, 然后将子脚本的输出再次通过自己的logger记录, 导致日志格式变成: 
+```
+[script时间] [script名] [级别] [子脚本时间] [子脚本名] [级别] 实际内容
+```
+
+### 2. **多次执行日志混合问题** 
+**原因**: script脚本读取整个日志文件内容进行解析, 包含了历史执行记录, 无法区分本次执行的日志。
+
+### 3. **复杂的时间过滤逻辑失效**
+**原因**: 试图通过时间范围过滤日志, 但在高频执行或时间相近的情况下, 过滤逻辑变得不可靠。
+
+## **通用话术/规范要求**
+
+### **脚本执行模式规范: **
+> 对于通过subprocess执行子脚本的wrapper脚本, 必须遵循以下规范: 
+> 1. **禁止双重日志记录**: wrapper脚本不得将子脚本的输出再次通过自己的logger记录
+> 2. **实时输出解析**: 直接解析子脚本的stdout/stderr输出, 而非读取日志文件
+> 3. **单次执行隔离**: 确保每次执行只处理当前执行的输出, 避免历史记录混合
+> 4. **原始日志保持**: 邮件或报告中应显示子脚本的原始日志格式, 不再添加wrapper层级的时间戳和脚本名
+
+## **通用解决方法模板**
+
+```python
+def collect_log_info_from_output(output_lines: List[str]) -> Dict[str, List[str]]:
+    """
+    直接从子脚本输出中收集并分类日志信息
+    :param output_lines: 子脚本的输出行列表  
+    :return: 分类后的日志信息
+    """
+    # 根据实际需要的关键字进行分类
+    target_logs = []
+    error_logs = []
+    
+    for line in output_lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # 根据具体业务需求添加关键字匹配
+        if "关键字1" in line:
+            target_logs.append(line)
+        elif "错误" in line or "ERROR" in line:
+            error_logs.append(line)
+            
+    return {'target_logs': target_logs, 'error_logs': error_logs}
+
+def job():
+    """主要任务函数"""
+    start_time = datetime.now(timezone)
+    logger.info("开始执行wrapper脚本")
+    
+    try:
+        # 执行子脚本
+        process = subprocess.Popen(
+            ['python', sub_script_path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        
+        stdout, stderr = process.communicate()
+        
+        # 解析输出（不记录到wrapper的日志中）
+        stdout_lines = parse_output(stdout)
+        stderr_lines = parse_output(stderr) 
+        all_output_lines = stdout_lines + stderr_lines
+        
+        logger.info("子脚本执行完毕")
+        
+        # 直接从输出解析信息
+        log_info = collect_log_info_from_output(all_output_lines)
+        
+        # 生成邮件内容（直接使用原始日志）
+        email_body = format_email_body(log_info, True)
+        
+    except Exception as e:
+        logger.error(f"执行失败: {str(e)}")
+```
+
+## **关键原则**
+
+1. **分离关注点**: wrapper脚本负责调度和通知, 子脚本负责具体业务逻辑
+2. **避免重复包装**: 不要在原始日志上再次添加时间戳和脚本名
+3. **实时处理原则**: 处理当前执行的输出, 不依赖持久化的日志文件
+4. **简单直接**: 用最简单的字符串匹配替代复杂的时间解析逻辑
+
+这套方法可以避免99%的类似问题, 确保日志内容清晰、准确、不重复。
