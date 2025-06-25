@@ -1,0 +1,34 @@
+# 企微机器人配置文件
+# 配置各个群的机器人webhook地址
+
+robots:
+  # 测试群机器人
+  test_group:
+    name: "测试群机器人"
+    webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test_webhook_key_here"
+    description: "用于测试的群机器人"
+    
+  # 运营群机器人  
+  operation_group:
+    name: "运营群机器人"
+    webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=operation_webhook_key_here"
+    description: "运营数据推送群机器人"
+    
+  # 技术群机器人
+  tech_group:
+    name: "技术群机器人"
+    webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=tech_webhook_key_here"
+    description: "技术告警和通知群机器人"
+    
+  # 管理层群机器人
+  management_group:
+    name: "管理层群机器人"
+    webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=management_webhook_key_here"
+    description: "管理层报告群机器人"
+
+# 使用说明:
+# 1. 替换上面的webhook_key为实际的机器人key
+# 2. 机器人key可以从企微群机器人设置中获取
+# 3. 完整的webhook_url格式: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY
+# 4. 在代码中使用: manager = WeworkRobotManager()
+#    然后: await manager.send_message_to_robot('test_group', 'text', content='Hello!') 

@@ -84,6 +84,33 @@ api_configs:
           corpsecret: "WEWORK_CORPSECRET"
         response_token_path: "access_token"
         description: "获取access_token, 参数值从环境变量获取"
+      
+      upload_temp_media:
+        path: "/cgi-bin/media/upload"
+        method: "POST"
+        params:
+          access_token: "ACCESS_TOKEN"
+          type: "TYPE"
+        content_type: "multipart/form-data"
+        description: "上传临时素材, 支持图片、语音、视频、文件格式"
+      
+      upload_webhook_media:
+        path: "/cgi-bin/webhook/upload_media"
+        method: "POST"
+        params:
+          key: "WEBHOOK_KEY"
+          type: "file"
+        content_type: "multipart/form-data"
+        description: "群机器人上传文件, 获取media_id用于发送文件消息"
+      
+      send_app_message:
+        path: "/cgi-bin/message/send"
+        method: "POST"
+        params:
+          access_token: "ACCESS_TOKEN"
+        post_body: "app_message"
+        description: "发送应用消息"
+      
       create_user:
         path: "/cgi-bin/user/create"
         method: "POST"
@@ -99,3 +126,31 @@ api_configs:
           access_token: "ACCESS_TOKEN"
         post_body: "user_update"
         description: "更新成员"
+  
+  # 企业微信群机器人webhook
+  wework_webhook:
+    base_url: "https://qyapi.weixin.qq.com"
+    endpoints:
+      send_text:
+        path: "/cgi-bin/webhook/send"
+        method: "POST"
+        params:
+          key: "WEBHOOK_KEY"
+        post_body: "webhook_text"
+        description: "群机器人发送文本消息"
+      
+      send_image:
+        path: "/cgi-bin/webhook/send"
+        method: "POST"
+        params:
+          key: "WEBHOOK_KEY"
+        post_body: "webhook_image"
+        description: "群机器人发送图片消息"
+      
+      send_file:
+        path: "/cgi-bin/webhook/send"
+        method: "POST"
+        params:
+          key: "WEBHOOK_KEY"
+        post_body: "webhook_file"
+        description: "群机器人发送文件消息"

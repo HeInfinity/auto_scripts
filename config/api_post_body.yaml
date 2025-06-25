@@ -35,6 +35,35 @@ post_body:
       enable_id_trans: 0
       enable_duplicate_check: 0
       duplicate_check_interval: 1800
+    
+    # 发送应用图片消息
+    app_message:
+      touser: "USER_ID"
+      msgtype: "image"
+      agentid: "AGENT_ID"
+      image:
+        media_id: "MEDIA_ID"
+    
+    # 群机器人发送文本消息
+    webhook_text:
+      msgtype: "text"
+      text:
+        content: "CONTENT"
+        mentioned_list: ["MENTIONED_LIST"]
+        mentioned_mobile_list: ["MENTIONED_MOBILE_LIST"]
+    
+    # 群机器人发送图片消息
+    webhook_image:
+      msgtype: "image"
+      image:
+        base64: "BASE64_CONTENT"
+        md5: "MD5_HASH"
+    
+    # 群机器人发送文件消息
+    webhook_file:
+      msgtype: "file"
+      file:
+        media_id: "MEDIA_ID"
 
   # 墨学院模板
   moxueyuan:
