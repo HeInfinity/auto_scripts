@@ -49,6 +49,9 @@ class DWHSyncScript:
         self.email_manager = EmailManager(logger=self.logger)
         self.email_sender = self.email_manager.get_sender('wework_hjq')
         
+        # 保存子脚本输出
+        self.sub_script_output = []
+        
     async def execute_sync_job(self) -> None:
         """执行数据仓库同步任务"""
         start_time = datetime.now()
@@ -78,44 +81,31 @@ class DWHSyncScript:
             stdout_text = stdout.decode('utf-8', errors='replace')
             stderr_text = stderr.decode('utf-8', errors='replace')
             
-            # 记录日志
-            self._log_output(stdout_text, stderr_text)
+            # 保存子脚本输出供后续邮件发送使用
+            self.sub_script_output = []
+            if stdout_text:
+                self.sub_script_output.extend(stdout_text.splitlines())
+            if stderr_text:
+                self.sub_script_output.extend(stderr_text.splitlines())
             
-            self.logger.info("脚本执行完毕...")
-            await self._send_execution_email(True, start_time)
+            # 记录输出到wrapper脚本自己的日志（但不重复记录格式）
+            self.logger.info(f"子脚本执行完毕，共获得 {len(self.sub_script_output)} 行输出")
+            
+            # 检查进程退出状态
+            if process.returncode != 0:
+                self.logger.error(f"子脚本执行失败，退出码: {process.returncode}")
+                await self._send_execution_email(False, start_time)
+            else:
+                self.logger.info("子脚本执行成功")
+                await self._send_execution_email(True, start_time)
             
         except Exception as e:
             error_msg = str(e)
             self.logger.error(f"发生错误信息: {error_msg}")
             await self._send_execution_email(False, start_time)
             
-    def _log_output(self, stdout_text: str, stderr_text: str) -> None:
-        """记录脚本输出到日志"""
-        if stdout_text:
-            for line in stdout_text.splitlines():
-                if line.strip():  # 只记录非空行
-                    # 检查是否已经是完整的日志格式（以[开头且包含] [）
-                    if line.startswith('[') and '] [' in line:
-                        # 直接写入日志文件，避免双重时间戳
-                        self.logger.handlers[0].stream.write(line.strip() + '\n')
-                        self.logger.handlers[0].stream.flush()
-                    else:
-                        # 不是完整格式，使用logger记录
-                        self.logger.info(line.strip())
-        if stderr_text:
-            for line in stderr_text.splitlines():
-                if line.strip():  # 只记录非空行
-                    # 检查是否已经是完整的日志格式
-                    if line.startswith('[') and '] [' in line:
-                        # 直接写入日志文件，避免双重时间戳
-                        self.logger.handlers[0].stream.write(line.strip() + '\n')
-                        self.logger.handlers[0].stream.flush()
-                    else:
-                        # 不是完整格式，使用logger记录
-                        self.logger.error(line.strip())
-                
-    def _parse_log_content(self, log_content: List[str], start_time: datetime) -> Dict[str, List[str]]:
-        """解析日志内容"""
+    def _parse_output_content(self, output_lines: List[str]) -> Dict[str, List[str]]:
+        """直接从子脚本输出中解析日志内容"""
         parsed_logs = {
             'query_times': [],      # SQL查询时间
             'errors': [],           # 错误信息
@@ -125,129 +115,124 @@ class DWHSyncScript:
             'get_data_times': []    # 获取数据时间
         }
         
-        for line in log_content:
-            # 解析日志时间，只处理本次执行期间的日志
-            try:
-                line_stripped = line.strip()
-                if not line_stripped:
-                    continue
+        self.logger.info(f"开始解析子脚本输出，总输出行数: {len(output_lines)}")
+        
+        parsed_count = 0
+        for line_num, line in enumerate(output_lines, 1):
+            line = line.strip()
+            if not line:
+                continue
                 
-                # 提取日志时间进行过滤
-                log_time = None
-                if line_stripped.startswith('[') and '] [' in line_stripped:
-                    # 处理[时间] [应用名] [级别]格式
-                    time_end = line_stripped.find('] [')
-                    if time_end > 0:
-                        log_time_str = line_stripped[1:time_end]
-                        log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
-                else:
-                    # 处理时间 级别格式
-                    parts = line_stripped.split()
-                    if len(parts) >= 3:
-                        try:
-                            log_time_str = parts[0] + ' ' + parts[1]
-                            log_time = datetime.strptime(log_time_str, '%Y-%m-%d %H:%M:%S')
-                        except ValueError:
-                            continue
+            parsed_count += 1
+            
+            # 根据关键词匹配，收集相关日志
+            if "代码总执行时间" in line:
+                parsed_logs['total_times'].append(line)
+            elif "错误信息" in line or "ERROR" in line:
+                parsed_logs['errors'].append(line)
+            elif "同步时间范围" in line:
+                parsed_logs['days_interval'].append(line)
+            elif "需要插入的记录数" in line or "需要更新的记录数" in line:
+                parsed_logs['data_range'].append(line)
+            elif "从个人数据库 SQL 查询花费时间" in line:
+                parsed_logs['get_data_times'].append(line)
+            elif "结束，耗时" in line:
+                parsed_logs['query_times'].append(line)
                 
-                # 只处理本次执行开始时间之后的日志
-                if log_time and log_time >= start_time:
-                    # 根据关键词匹配，收集相关日志
-                    if "代码总执行时间" in line_stripped:
-                        parsed_logs['total_times'].append(line_stripped)
-                    elif "错误信息" in line_stripped:
-                        parsed_logs['errors'].append(line_stripped)
-                    elif "同步时间范围" in line_stripped:
-                        parsed_logs['days_interval'].append(line_stripped)
-                    elif "需要插入的记录数" in line_stripped or "需要更新的记录数" in line_stripped:
-                        parsed_logs['data_range'].append(line_stripped)
-                    elif "从个人数据库 SQL 查询花费时间" in line_stripped:
-                        parsed_logs['get_data_times'].append(line_stripped)
-                    elif "结束，耗时" in line_stripped:
-                        parsed_logs['query_times'].append(line_stripped)
-                        
-            except Exception:
-                continue  # 跳过无法解析的行
+        self.logger.info(f"输出解析完成，共解析 {parsed_count} 行有效输出")
+        
+        # 记录各类日志的数量
+        for log_type, logs in parsed_logs.items():
+            if logs:
+                self.logger.info(f"{log_type}: {len(logs)} 条")
                 
         return parsed_logs
         
     async def _send_execution_email(self, success: bool, start_time: datetime) -> None:
         """发送执行结果邮件"""
         try:
-            # 等待日志完全写入文件
-            await asyncio.sleep(2)
+            self.logger.info("开始准备发送执行结果邮件")
             
-            # 构建日志文件路径
-            script_name = os.path.splitext(os.path.basename(__file__))[0]
-            log_file = os.path.join(project_root, 'auto_scripts', 'logs', f"{script_name}.log")
-            
-            if not os.path.exists(log_file):
-                # 尝试备用路径
-                log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'logs',
-                                      f"{script_name}.log")
-            
-            if os.path.exists(log_file):
-                with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
-                    log_content = f.readlines()
-            else:
-                self.logger.error(f"无法找到日志文件: {log_file}")
-                log_content = []
+            # 检查是否有子脚本输出
+            if not self.sub_script_output:
+                self.logger.warning("没有子脚本输出，将发送简单的执行结果邮件")
+                # 发送简单的执行结果邮件
+                self.email_sender.send_email(
+                    subject='数仓同步执行结果 - 无输出',
+                    body=f"脚本执行{'成功' if success else '失败'}，但没有获取到子脚本的输出内容。",
+                    receiver_group='default'
+                )
+                return
                 
-            # 解析日志内容
-            parsed_logs = self._parse_log_content(log_content, start_time)
+            self.logger.info(f"开始解析 {len(self.sub_script_output)} 行子脚本输出")
+                
+            # 直接从子脚本输出解析日志内容
+            parsed_logs = self._parse_output_content(self.sub_script_output)
             
-            # 组装日志内容，确保不同类型的日志之间有空行
-            email_content = []
-            
-            # 添加总执行时间
-            if parsed_logs['total_times']:
-                email_content.append('\n'.join(parsed_logs['total_times']))
-            
-            # 添加错误信息(如果有)
-            if parsed_logs['errors']:
-                if email_content:
-                    email_content.append("")  # 添加空行
-                email_content.append('\n'.join(parsed_logs['errors']))
-            
-            # 添加同步时间范围
-            if parsed_logs['days_interval']:
-                if email_content:
-                    email_content.append("")  # 添加空行
-                email_content.append('\n'.join(parsed_logs['days_interval']))
-            
-            # 添加数据范围
-            if parsed_logs['data_range']:
-                if email_content:
-                    email_content.append("")  # 添加空行
-                email_content.append('\n'.join(parsed_logs['data_range']))
-            
-            # 添加获取数据时间
-            if parsed_logs['get_data_times']:
-                if email_content:
-                    email_content.append("")  # 添加空行
-                email_content.append('\n'.join(parsed_logs['get_data_times']))
-            
-            # 添加查询时间
-            if parsed_logs['query_times']:
-                if email_content:
-                    email_content.append("")  # 添加空行
-                email_content.append('\n'.join(parsed_logs['query_times']))
-            
-            # 连接所有部分
-            log_lines = '\n'.join(email_content)
-            
-            # 如果没有解析到任何有用的日志内容，添加基本执行信息
-            if not log_lines.strip():
-                self.logger.warning("未解析到有用的日志内容，使用基本执行信息")
-                log_lines = f"脚本执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n执行状态: {'成功' if success else '失败'}"
-            
-            # 生成邮件内容
-            execution_result = "脚本执行成功, 但出现错误" if parsed_logs['errors'] else f"脚本执行{'成功' if success else '失败'}"
-            body = (
-                f"{execution_result}。\n"
-                f"以下是本次执行的日志内容：\n\n"
-                f"{log_lines}"
-            )
+            # 检查是否有有效的日志内容
+            total_logs = sum(len(logs) for logs in parsed_logs.values())
+            if total_logs == 0:
+                self.logger.warning("未解析到任何有效日志，将发送包含原始输出的邮件")
+                # 如果没有解析到有效日志，发送最近的输出内容
+                recent_output = self.sub_script_output[-50:] if len(self.sub_script_output) > 50 else self.sub_script_output
+                body = (
+                    f"脚本执行{'成功' if success else '失败'}，但日志解析异常。\n"
+                    f"以下是子脚本的输出内容：\n\n"
+                    f"{''.join(line + '\n' for line in recent_output)}"
+                )
+            else:
+                # 组装日志内容，确保不同类型的日志之间有空行
+                email_content = []
+                
+                # 添加总执行时间
+                if parsed_logs['total_times']:
+                    email_content.append('\n'.join(parsed_logs['total_times']))
+                
+                # 添加错误信息(如果有)
+                if parsed_logs['errors']:
+                    if email_content:
+                        email_content.append("")  # 添加空行
+                    email_content.append('\n'.join(parsed_logs['errors']))
+                
+                # 添加同步时间范围
+                if parsed_logs['days_interval']:
+                    if email_content:
+                        email_content.append("")  # 添加空行
+                    email_content.append('\n'.join(parsed_logs['days_interval']))
+                
+                # 添加数据范围
+                if parsed_logs['data_range']:
+                    if email_content:
+                        email_content.append("")  # 添加空行
+                    email_content.append('\n'.join(parsed_logs['data_range']))
+                
+                # 添加获取数据时间
+                if parsed_logs['get_data_times']:
+                    if email_content:
+                        email_content.append("")  # 添加空行
+                    email_content.append('\n'.join(parsed_logs['get_data_times']))
+                
+                # 添加查询时间
+                if parsed_logs['query_times']:
+                    if email_content:
+                        email_content.append("")  # 添加空行
+                    email_content.append('\n'.join(parsed_logs['query_times']))
+                
+                # 连接所有部分
+                log_lines = '\n'.join(email_content)
+                
+                # 如果没有解析到任何有用的日志内容，添加基本执行信息
+                if not log_lines.strip():
+                    self.logger.warning("未解析到有用的日志内容，使用基本执行信息")
+                    log_lines = f"脚本执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n执行状态: {'成功' if success else '失败'}"
+                
+                # 生成邮件内容
+                execution_result = "脚本执行成功, 但出现错误" if parsed_logs['errors'] else f"脚本执行{'成功' if success else '失败'}"
+                body = (
+                    f"{execution_result}。\n"
+                    f"以下是本次执行的日志内容：\n\n"
+                    f"{log_lines}"
+                )
             
             # 发送邮件
             self.email_sender.send_email(
