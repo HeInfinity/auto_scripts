@@ -1,8 +1,8 @@
 -- PostgreSQL
--- 客户销售数据分析查询 - 优化版本
+-- 客户销售数据分析查询 - 稳定优化版本
 -- 功能: 分析客户的销售数据, 包括客户分类, 产值统计, 划转分析等
 -- 最后更新: 2025-06-30
--- 优化: 使用NULLIF简化CASE语句, 优化WHERE条件, 改进GROUP BY等
+-- 优化: 删除未使用CTE, 简化逻辑表达式, 优化可读性, 确保稳定运行
 
 -- 时间变量定义
 WITH "time_vars" AS (
@@ -11,17 +11,7 @@ WITH "time_vars" AS (
         '2025-06-22 23:59:59'::TIMESTAMP AS "end_date"
 ),
 
--- 符合条件的角色筛选 (提取为独立CTE以便复用)
-"valid_roles" AS (
-    SELECT DISTINCT "role_name"
-    FROM (
-        VALUES 
-            ('%营业部经理%'),
-            ('%KA经理-自营%'),
-            ('%KA专员-自营%'),
-            ('%营业部主管%')
-    ) AS "roles"("role_name")
-),
+
 
 -- 员工客户基础关系 (解决门类重复问题)
 "employee_customer_base" AS (
@@ -137,28 +127,28 @@ WITH "time_vars" AS (
                 ((SELECT "end_date" FROM "time_vars")::DATE - "ve"."month_before_order_time"::DATE)
         END AS "customer_lost_days",
         
-        -- 客户类型分类逻辑
+                 -- 客户类型分类逻辑 (优化可读性)
         CASE
             WHEN "ve"."month_before_order_time" IS NULL 
                 AND "ve"."month_first_order_time" IS NOT NULL THEN
                 '首单客户' 
-            WHEN "ve"."interval_days" >= 30 
-                AND "ve"."interval_days" < 90 
+            WHEN "ve"."interval_days" BETWEEN 30 AND 89
                 AND "ve"."month_first_serviceman_id" <> "ve"."month_before_serviceman_id" THEN
                 '超30日未下单非本人客户拉回'
             WHEN "ve"."interval_days" >= 90 THEN
                 '超90日外未下单客户拉回' 
-            WHEN "ve"."month_first_order_time" IS NULL 
-                AND ((SELECT "end_date" FROM "time_vars")::DATE - "ve"."month_before_order_time"::DATE) >= 30
-                AND ((SELECT "end_date" FROM "time_vars")::DATE - "ve"."month_before_order_time"::DATE) < 90 THEN
-                '超30日流失未下单客户' 
-            WHEN "ve"."month_first_order_time" IS NULL 
-                AND ((SELECT "end_date" FROM "time_vars")::DATE - "ve"."month_before_order_time"::DATE) >= 90 THEN
-                '超90日流失未下单客户' 
+            WHEN "ve"."month_first_order_time" IS NULL THEN
+                CASE
+                    WHEN ((SELECT "end_date" FROM "time_vars")::DATE - "ve"."month_before_order_time"::DATE) BETWEEN 30 AND 89 THEN
+                        '超30日流失未下单客户'
+                    WHEN ((SELECT "end_date" FROM "time_vars")::DATE - "ve"."month_before_order_time"::DATE) >= 90 THEN
+                        '超90日流失未下单客户'
+                    ELSE NULL
+                END
             WHEN "ve"."month_before_order_time" IS NULL 
                 AND "ve"."month_first_order_time" IS NULL THEN
                 '未下单客户'
-            ELSE ''
+            ELSE NULL
         END AS "customer_type",
         
         -- 末单信息
@@ -233,23 +223,23 @@ WITH "time_vars" AS (
                 '营业部不变，经营岗划转' 
         END AS "transfer_type",
         
-        -- 高粘客户判断 (按子公司不同标准)
-        CASE
-            WHEN "ca"."subsidiary_name" = '成都子公司'
-                AND SUM("ss"."sales_value") >= 5000
-                AND COUNT(DISTINCT "ss"."settlement_day") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 8
-                AND COUNT(DISTINCT "ss"."first_cate_id") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 5 THEN
-                '是' 
-            WHEN "ca"."subsidiary_name" = '重庆子公司'
-                AND SUM("ss"."sales_value") >= 4000
-                AND COUNT(DISTINCT "ss"."settlement_day") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 8
-                AND COUNT(DISTINCT "ss"."first_cate_id") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 5 THEN
-                '是' 
-            WHEN "ca"."subsidiary_name" = '南京子公司'
-                AND SUM("ss"."sales_value") >= 3000
-                AND COUNT(DISTINCT "ss"."settlement_day") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 8
-                AND COUNT(DISTINCT "ss"."first_cate_id") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 5 THEN
-                '是' 
+                 -- 高粘客户判断 (优化子公司判断逻辑)
+        CASE "ca"."subsidiary_name"
+            WHEN '成都子公司' THEN
+                CASE WHEN SUM("ss"."sales_value") >= 5000
+                    AND COUNT(DISTINCT "ss"."settlement_day") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 8
+                    AND COUNT(DISTINCT "ss"."first_cate_id") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 5 
+                    THEN '是' END
+            WHEN '重庆子公司' THEN
+                CASE WHEN SUM("ss"."sales_value") >= 4000
+                    AND COUNT(DISTINCT "ss"."settlement_day") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 8
+                    AND COUNT(DISTINCT "ss"."first_cate_id") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 5 
+                    THEN '是' END
+            WHEN '南京子公司' THEN
+                CASE WHEN SUM("ss"."sales_value") >= 3000
+                    AND COUNT(DISTINCT "ss"."settlement_day") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 8
+                    AND COUNT(DISTINCT "ss"."first_cate_id") FILTER (WHERE "ss"."sales_value" - "ss"."return_value" > 0) >= 5 
+                    THEN '是' END
         END AS "is_high_sticky_customer",
         
         -- 当前经营岗产值和毛利
@@ -299,7 +289,6 @@ WITH "time_vars" AS (
         AND "ss"."settlement_day" BETWEEN (SELECT "start_date" FROM "time_vars") 
         AND (SELECT "end_date" FROM "time_vars")
     WHERE "ca"."customer_type" IS NOT NULL 
-        AND "ca"."customer_type" <> ''
         AND (
             ("ca"."delivery_center_id" = "ca"."employee_dc_id" AND "ca"."role_name" LIKE '%营业部经理%')
             OR ("ca"."role_name" LIKE '%KA经理-自营%')
