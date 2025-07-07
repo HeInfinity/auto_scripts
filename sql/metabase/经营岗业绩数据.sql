@@ -8,23 +8,23 @@ WITH "date_range" AS (
      SELECT DATE_TRUNC('month', CURRENT_DATE)::DATE AS "start_date",
             (CURRENT_DATE - INTERVAL '1 day')::DATE AS "end_date"
 ),
--- 汇总每个客户的产值和毛利额
+-- 汇总每个客户的产值和毛利额, 按结算月份分组
 "sales_performance" AS (
      SELECT "dws"."sales_day_stats"."sub_id",
             "dws"."sales_day_stats"."regional_id",
             "dws"."sales_day_stats"."dc_id",
             "dws"."sales_day_stats"."store_id",
             "dws"."sales_day_stats"."serviceman_id",
+            DATE_TRUNC('month', "dws"."sales_day_stats"."settlement_day")::DATE AS "settlement_month",
             SUM("dws"."sales_day_stats"."sales_value") AS "sales_amount",
             SUM("dws"."sales_day_stats"."profit") AS "profit_amount",
-            "ads"."store_profile"."first_order_settlement_time",
-            "date_range"."start_date"
+            "ads"."store_profile"."first_order_settlement_time"
        FROM "dws"."sales_day_stats"
  INNER JOIN "ads"."store_profile"
          ON "dws"."sales_day_stats"."store_id" = "ads"."store_profile"."store_id"
  CROSS JOIN "date_range"
       WHERE "dws"."sales_day_stats"."settlement_day" BETWEEN "date_range"."start_date" AND "date_range"."end_date"
-   GROUP BY 1, 2, 3, 4, 5, 8, 9
+   GROUP BY 1, 2, 3, 4, 5, 6, 9
 ),
 -- 关联基础信息获取客户和员工的信息
 "sales_base" AS (
@@ -38,8 +38,8 @@ WITH "date_range" AS (
             "sales_performance"."sales_amount",
             "sales_performance"."profit_amount",
             "sales_performance"."first_order_settlement_time",
-            DATE_TRUNC('MONTH', "sales_performance"."first_order_settlement_time")::DATE AS "settlement_month",
-            DATE_TRUNC('MONTH', "sales_performance"."start_date")::DATE AS "current_month"
+            "sales_performance"."settlement_month",
+            DATE_TRUNC('MONTH', "sales_performance"."first_order_settlement_time")::DATE AS "first_order_settlement_month"
        FROM "sales_performance"
  INNER JOIN "dwd"."delivercenter_info"
          ON "sales_performance"."dc_id" = "dwd"."delivercenter_info"."id"
@@ -51,13 +51,13 @@ WITH "date_range" AS (
 -- 计算客户属性并修正营业部名称
 "customer_attributes" AS (
      SELECT "sales_base".*,
-            CASE WHEN "sales_base"."settlement_month" = "sales_base"."current_month" THEN '新客'
+            CASE WHEN "sales_base"."first_order_settlement_month" = "sales_base"."settlement_month" THEN '新客'
                  ELSE '老客' END AS "nextmonth_holding_capacity",
-            CASE WHEN "sales_base"."settlement_month" < DATE_TRUNC('YEAR', "sales_base"."current_month")::DATE THEN '老客保有'
-                 WHEN "sales_base"."settlement_month" = "sales_base"."current_month" THEN '当月新开'
+            CASE WHEN "sales_base"."first_order_settlement_month" < DATE_TRUNC('YEAR', "sales_base"."settlement_month")::DATE THEN '老客保有'
+                 WHEN "sales_base"."first_order_settlement_month" = "sales_base"."settlement_month" THEN '当月新开'
                  ELSE '新客保有' END AS "comprehensive_holding_capacity",
-            CASE WHEN "sales_base"."settlement_month" = "sales_base"."current_month" THEN '新客'
-                 WHEN "sales_base"."first_order_settlement_time" >= ("sales_base"."current_month" - INTERVAL '1' MONTH) 
+            CASE WHEN "sales_base"."first_order_settlement_month" = "sales_base"."settlement_month" THEN '新客'
+                 WHEN "sales_base"."first_order_settlement_time" >= ("sales_base"."settlement_month" - INTERVAL '1' MONTH) 
                       AND EXTRACT(DAY FROM "sales_base"."first_order_settlement_time") >= 25 THEN '新客'
                  ELSE '老客' END AS "after25_holding_capacity",
             CASE WHEN "sales_base"."dc_name" = '琉璃场营业部' THEN '海椒市横街营业部'
@@ -78,8 +78,8 @@ WITH "date_range" AS (
             "customer_attributes"."sales_amount" AS "产值",
             "customer_attributes"."profit_amount" AS "毛利额",
             "customer_attributes"."first_order_settlement_time" AS "首单结算时间",
-            "customer_attributes"."settlement_month" AS "首单结算月",
-            "customer_attributes"."current_month" AS "当月月份",
+            "customer_attributes"."first_order_settlement_month" AS "首单结算月",
+            "customer_attributes"."settlement_month" AS "结算月份",
             "customer_attributes"."nextmonth_holding_capacity" AS "次月新老客",
             "customer_attributes"."comprehensive_holding_capacity" AS "去年新老客",
             "customer_attributes"."after25_holding_capacity" AS "25日后新老客",
