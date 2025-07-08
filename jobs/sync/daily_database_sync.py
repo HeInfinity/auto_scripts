@@ -56,6 +56,11 @@ days_interval = 1 # 表示日期始位置; 所以相比days_offset要多往前�
 # @filter_date = CURRENT_DATE - days_updated, 默认值45
 days_updated = 45 # 与days_interval的作用相同, 表示日期始位置, 只是在queries_large_table中筛选特定日期区间以减少数据查询量
 
+# 查询超时配置 (单位: 秒)
+# 这是针对大表Step 1日期查询的单次查询超时时间, 包括连接、查询、结果处理的总时间
+# 根据数据库负载情况可以调整: 轻负载时可减少到60-90秒, 高负载时可增加到120-180秒
+large_table_query_timeout = 90  # 大表日期查询超时时间, 默认90秒
+
 # 初始化数据库管理器
 db_manager = DBManager(logger=logger, max_retry=3, connect_timeout=20, max_concurrent=5)
 
@@ -91,7 +96,7 @@ def async_timeout(timeout: int) -> Callable[[Callable[..., Coroutine[Any, Any, T
     return decorator
 
 # sync_large_table_step1: 从公司数据库获取在updateAt中所有 createdAt 日期的数据
-@async_timeout(45)  # 设置45秒超时
+@async_timeout(large_table_query_timeout)  # 使用可配置的超时时间
 async def fetch_dates_with_updates(conn, query, table_name):
     try:
         async with conn.cursor() as cursor:
@@ -107,7 +112,7 @@ async def fetch_dates_with_updates(conn, query, table_name):
             # 返回创建日期列表
             return [row['createdAt'].strftime('%Y-%m-%d') for row in dates]
     except TimeoutError:
-        logger.error(f"{table_name} 查询超时(60秒), 将重试连接")
+        logger.error(f"{table_name} Step 1 超时({large_table_query_timeout}秒), 可能数据量过大或需要索引优化")
         raise
     except Exception as e:
         logger.error(f"{table_name} 查询出错: {str(e)}")
@@ -277,10 +282,12 @@ async def sync_large_table(table_name, date_query, data_query_template, semaphor
                     dates = await fetch_dates_with_updates(conn1, date_query, table_name)
                     dates_query_time = time.time() - start_dates_query_time
                 except TimeoutError:
-                    logger.error(f"{table_name} Step 1 超时, 等待10秒后进行第 {retries + 2} 次重试")
+                    # 对于大表超时，使用更长的重试间隔
+                    retry_delay = 30 if table_name in ['orderitems', 'deliveryreceiptitems'] else 10
+                    logger.error(f"{table_name} Step 1 超时, 等待{retry_delay}秒后进行第 {retries + 2} 次重试")
                     retries += 1
                     if retries <= max_retries:
-                        await asyncio.sleep(10)
+                        await asyncio.sleep(retry_delay)
                         continue
                     else:
                         logger.error(f"{table_name} 已达到最大重试次数 {max_retries}, 处理失败")
@@ -623,12 +630,26 @@ async def main():
 
     tasks = []
 
-    # 处理使用 sync_large_table 的表
+    # 处理使用 sync_large_table 的表 - 优先处理problematic的大表
+    priority_tables = ['orderitems', 'deliveryreceiptitems']
+    
+    # 首先创建优先级表的任务
+    for table in priority_tables:
+        if table in queries_large_table:
+            config = queries_large_table[table]
+            task = asyncio.create_task(
+                sync_large_table(table, config['date_query'], config['data_query_template'], semaphore)
+            )
+            tasks.append(task)
+            logger.info(f"优先处理大表: {table}")
+    
+    # 然后创建其他大表的任务
     for table, config in queries_large_table.items():
-        task = asyncio.create_task(
-            sync_large_table(table, config['date_query'], config['data_query_template'], semaphore)
-        )
-        tasks.append(task)
+        if table not in priority_tables:
+            task = asyncio.create_task(
+                sync_large_table(table, config['date_query'], config['data_query_template'], semaphore)
+            )
+            tasks.append(task)
 
     # 处理使用 sync_small_table 的表
     for table, query in queries_small_table.items():
