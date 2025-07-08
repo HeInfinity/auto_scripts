@@ -57,9 +57,10 @@ days_interval = 1 # 表示日期始位置; 所以相比days_offset要多往前�
 days_updated = 45 # 与days_interval的作用相同, 表示日期始位置, 只是在queries_large_table中筛选特定日期区间以减少数据查询量
 
 # 查询超时配置 (单位: 秒)
-# 这是针对大表Step 1日期查询的单次查询超时时间, 包括连接、查询、结果处理的总时间
-# 根据数据库负载情况可以调整: 轻负载时可减少到60-90秒, 高负载时可增加到120-180秒
-large_table_query_timeout = 90  # 大表日期查询超时时间, 默认90秒
+# 正常情况下查询20秒内完成, 45秒已是2倍+缓冲时间
+# 如果超时通常意味着查询卡住了, 应该快速失败并重试, 而不是等待更长时间
+# 设置60秒: 比45秒稍宽松但避免长时间卡住
+large_table_query_timeout = 60  # 大表日期查询超时时间, 快速失败策略
 
 # 初始化数据库管理器
 db_manager = DBManager(logger=logger, max_retry=3, connect_timeout=20, max_concurrent=5)
@@ -98,21 +99,30 @@ def async_timeout(timeout: int) -> Callable[[Callable[..., Coroutine[Any, Any, T
 # sync_large_table_step1: 从公司数据库获取在updateAt中所有 createdAt 日期的数据
 @async_timeout(large_table_query_timeout)  # 使用可配置的超时时间
 async def fetch_dates_with_updates(conn, query, table_name):
+    import time
+    start_time = time.time()
     try:
+        logger.info(f"{table_name} 开始执行Step 1日期查询")
         async with conn.cursor() as cursor:
             # 使用 days_interval 和 days_offset 设置时间
             await cursor.execute(f"SET @start_date = CURRENT_DATE - INTERVAL {days_interval} DAY;")
             await cursor.execute(f"SET @end_date = CURRENT_DATE - INTERVAL {days_offset} DAY;")
             await cursor.execute(f"SET @filter_date = CURRENT_DATE - INTERVAL {days_updated} DAY;")
             
-            # 执行查询
+            # 执行查询并记录时间
+            query_start = time.time()
             await cursor.execute(query)
             dates = await cursor.fetchall()
+            query_time = time.time() - query_start
+            
+            # 记录查询执行时间
+            logger.info(f"{table_name} Step 1查询完成, 耗时: {query_time:.2f}秒, 找到 {len(dates)} 个日期")
             
             # 返回创建日期列表
             return [row['createdAt'].strftime('%Y-%m-%d') for row in dates]
     except TimeoutError:
-        logger.error(f"{table_name} Step 1 超时({large_table_query_timeout}秒), 可能数据量过大或需要索引优化")
+        logger.error(f"{table_name} Step 1 超时({large_table_query_timeout}秒) - 查询被卡住")
+        logger.error(f"正常情况下查询应在20秒内完成, 超时通常表示连接或锁等待问题")
         raise
     except Exception as e:
         logger.error(f"{table_name} 查询出错: {str(e)}")
